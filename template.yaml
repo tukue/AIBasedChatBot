@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for S3 data processing, Bedrock training, and chatbot interface'
+
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket containing the training data
+
+  DynamoDBTableName:
+    Type: String
+    Description: Name of the DynamoDB table to store results
+
+  BedrockModelId:
+    Type: String
+    Description: ID of the Bedrock model to use for training
+
+  BotName:
+    Type: String
+    Description: Name of the Lex bot
+
+Resources:
+  # ... (Previous resources remain the same)
+
+  # New resources for chatbot interface
+  LexBot:
+    Type: AWS::Lex::Bot
+    Properties:
+      Name: !Ref BotName
+      DataPrivacy: 
+        ChildDirected: false
+      IdleSessionTTLInSeconds: 300
+      RoleArn: !GetAtt LexBotRole.Arn
+      BotLocales:
+        - LocaleId: en_US
+          NluConfidenceThreshold: 0.40
+          VoiceSettings:
+            VoiceId: Salli
+          Intents:
+            - Name: FallbackIntent
+              Description: Default intent when no other intent matches
+              FulfillmentCodeHook:
+                Enabled: true
+              SampleUtterances:
+                - "{utterance}"
+      AutoBuildBotLocales: true
+
+  LexBotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lexv2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSLambdaExecute
+
+  LexBotVersion:
+    Type: AWS::Lex::BotVersion
+    Properties:
+      BotId: !Ref LexBot
+      BotVersionLocaleSpecification:
+        - LocaleId: en_US
+          BotVersionLocaleDetails:
+            SourceBotVersion: DRAFT
+
+  LexBotAlias:
+    Type: AWS::Lex::BotAlias
+    Properties:
+      BotAliasName: prod
+      BotId: !Ref LexBot
+      BotVersion: !GetAtt LexBotVersion.BotVersion
+      SentimentAnalysisSettings:
+        DetectSentiment: false
+
+  ChatbotLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt ChatbotLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+
+          bedrock = boto3.client('bedrock-runtime')
+          dynamodb = boto3.resource('dynamodb')
+
+          def handler(event, context):
+              input_text = event['inputTranscript']
+              
+              # Call Bedrock model
+              response = bedrock.invoke_model(
+                  modelId='YOUR_BEDROCK_MODEL_ID',
+                  contentType='application/json',
+                  accept='application/json',
+                  body=json.dumps({
+                      "prompt": input_text,
+                      "max_tokens_to_sample": 300,
+                      "temperature": 0.7,
+                      "top_p": 0.9,
+                  })
+              )
+              
+              model_response = json.loads(response['body'].read())['completion']
+              
+              # Store interaction in DynamoDB
+              table = dynamodb.Table('YOUR_DYNAMODB_TABLE_NAME')
+              table.put_item(
+                  Item={
+                      'id': context.aws_request_id,
+                      'input': input_text,
+                      'response': model_response
+                  }
+              )
+              
+              return {
+                  'sessionState': {
+                      'dialogAction': {
+                          'type': 'Close'
+                      },
+                      'intent': {
+                          'name': 'FallbackIntent',
+                          'state': 'Fulfilled'
+                      }
+                  },
+                  'messages': [
+                      {
+                          'contentType': 'PlainText',
+                          'content': model_response
+                      }
+                  ]
+              }
+
+      Runtime: python3.8
+      Timeout: 30
+
+  ChatbotLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource: !GetAtt DynamoDBTable.Arn
+
+  ApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ChatbotAPI
+      Description: API for chatbot interface
+
+  ApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: chat
+
+  ApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ApiGatewayResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - LambdaArn: !GetAtt ChatbotLambda.Arn
+
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: ApiGatewayMethod
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: prod
+
+  LambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt ChatbotLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/chat
+
+Outputs:
+  
+  ChatbotApiUrl:
+    Description: URL of the chatbot API
+    Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/chat
