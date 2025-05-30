@@ -1,0 +1,6 @@
+---
+templates:
+  - template.yaml
+ignore_checks:
+  - E3012  # Property not required
+  - W3005  # Resource properties availability based on region

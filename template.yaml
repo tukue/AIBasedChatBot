@@ -1,79 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'CloudFormation template for S3 data processing, Bedrock training, and chatbot interface'
+Description: 'CloudFormation template for Bedrock-powered chatbot interface'
 
 Parameters:
-  S3BucketName:
-    Type: String
-    Description: Name of the S3 bucket containing the training data
-
   DynamoDBTableName:
     Type: String
     Description: Name of the DynamoDB table to store results
+    Default: chatbot-history
 
   BedrockModelId:
     Type: String
-    Description: ID of the Bedrock model to use for training
-
-  BotName:
-    Type: String
-    Description: Name of the Lex bot
+    Description: ID of the Bedrock model to use
+    Default: anthropic.claude-v2
 
 Resources:
-  # ... (Previous resources remain the same)
-
-  # New resources for chatbot interface
-  LexBot:
-    Type: AWS::Lex::Bot
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
     Properties:
-      Name: !Ref BotName
-      DataPrivacy: 
-        ChildDirected: false
-      IdleSessionTTLInSeconds: 300
-      RoleArn: !GetAtt LexBotRole.Arn
-      BotLocales:
-        - LocaleId: en_US
-          NluConfidenceThreshold: 0.40
-          VoiceSettings:
-            VoiceId: Salli
-          Intents:
-            - Name: FallbackIntent
-              Description: Default intent when no other intent matches
-              FulfillmentCodeHook:
-                Enabled: true
-              SampleUtterances:
-                - "{utterance}"
-      AutoBuildBotLocales: true
-
-  LexBotRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lexv2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSLambdaExecute
-
-  LexBotVersion:
-    Type: AWS::Lex::BotVersion
-    Properties:
-      BotId: !Ref LexBot
-      BotVersionLocaleSpecification:
-        - LocaleId: en_US
-          BotVersionLocaleDetails:
-            SourceBotVersion: DRAFT
-
-  LexBotAlias:
-    Type: AWS::Lex::BotAlias
-    Properties:
-      BotAliasName: prod
-      BotId: !Ref LexBot
-      BotVersion: !GetAtt LexBotVersion.BotVersion
-      SentimentAnalysisSettings:
-        DetectSentiment: false
+      TableName: !Ref DynamoDBTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
 
   ChatbotLambda:
     Type: AWS::Lambda::Function
@@ -84,16 +34,25 @@ Resources:
         ZipFile: |
           import json
           import boto3
+          import os
 
-          bedrock = boto3.client('bedrock-runtime')
-          dynamodb = boto3.resource('dynamodb')
+          region = os.environ['AWS_REGION']
+          bedrock = boto3.client('bedrock-runtime', region_name=region)
+          dynamodb = boto3.resource('dynamodb', region_name=region)
+          table_name = os.environ['DYNAMODB_TABLE_NAME']
+          model_id = os.environ['BEDROCK_MODEL_ID']
 
           def handler(event, context):
-              input_text = event['inputTranscript']
+              # Extract input from API Gateway event
+              try:
+                  body = json.loads(event['body'])
+                  input_text = body.get('input', '')
+              except:
+                  input_text = "Hello"
               
               # Call Bedrock model
               response = bedrock.invoke_model(
-                  modelId='YOUR_BEDROCK_MODEL_ID',
+                  modelId=model_id,
                   contentType='application/json',
                   accept='application/json',
                   body=json.dumps({
@@ -107,7 +66,7 @@ Resources:
               model_response = json.loads(response['body'].read())['completion']
               
               # Store interaction in DynamoDB
-              table = dynamodb.Table('YOUR_DYNAMODB_TABLE_NAME')
+              table = dynamodb.Table(table_name)
               table.put_item(
                   Item={
                       'id': context.aws_request_id,
@@ -117,25 +76,22 @@ Resources:
               )
               
               return {
-                  'sessionState': {
-                      'dialogAction': {
-                          'type': 'Close'
-                      },
-                      'intent': {
-                          'name': 'FallbackIntent',
-                          'state': 'Fulfilled'
-                      }
+                  'statusCode': 200,
+                  'headers': {
+                      'Content-Type': 'application/json',
+                      'Access-Control-Allow-Origin': '*'
                   },
-                  'messages': [
-                      {
-                          'contentType': 'PlainText',
-                          'content': model_response
-                      }
-                  ]
+                  'body': json.dumps({
+                      'response': model_response
+                  })
               }
-
       Runtime: python3.8
       Timeout: 30
+      Environment:
+        Variables:
+          DYNAMODB_TABLE_NAME: !Ref DynamoDBTableName
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          AWS_REGION: !Ref AWS::Region
 
   ChatbotLambdaRole:
     Type: AWS::IAM::Role
@@ -210,7 +166,6 @@ Resources:
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGateway}/*/POST/chat
 
 Outputs:
-  
   ChatbotApiUrl:
     Description: URL of the chatbot API
     Value: !Sub https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/chat

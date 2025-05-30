@@ -4,9 +4,17 @@
   "description": "Bedrock-Powered Chatbot",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "validate": "node validate-template.js",
+    "validate:sh": "bash validate-template.sh",
+    "validate:region": "AWS_REGION=us-west-2 node validate-template.js",
+    "visualize": "node visualize-services.js",
+    "test": "npm run validate"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.1450.0",
+    "js-yaml": "^4.1.0"
+  }
 }
