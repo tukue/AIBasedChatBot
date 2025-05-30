@@ -84,7 +84,7 @@ Once deployed, you can interact with the chatbot by sending POST requests to the
 curl -X POST \
   https://{api-id}.execute-api.{region}.amazonaws.com/prod/chat \
   -H 'Content-Type: application/json' \
-  -d '{"input": "Hello, how can you help me today?"}'
+  -d '{"input": "Hello, how to test cloudformation template?"}'
 ```
 
 ## Cleanup
