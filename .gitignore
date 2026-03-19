@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# AWS credentials
+.aws/
+*.pem
+
+# Test outputs
+.taskcat/
+taskcat_outputs/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+
+# Old templates
+template-simplified.yaml
