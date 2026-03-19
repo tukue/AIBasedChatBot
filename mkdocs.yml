@@ -1,0 +1,12 @@
+site_name: Bedrock Chatbot Platform Starter
+site_description: Product and operational documentation for the Backstage-enabled Bedrock chatbot starter.
+repo_url: https://github.com/tukue/AIBasedChatBot
+docs_dir: docs
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - Backlog: backlog.md
+  - Backstage Adoption: backstage.md
+markdown_extensions:
+  - tables
+  - admonition

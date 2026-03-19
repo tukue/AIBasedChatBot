@@ -1,0 +1,63 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: bedrock-chatbot
+  title: Bedrock Chatbot Platform Starter
+  description: Serverless AWS Bedrock chatbot template productized for Backstage-based internal developer platforms.
+  tags:
+    - aws
+    - bedrock
+    - chatbot
+    - cloudformation
+    - backstage
+    - idp
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: tukue/AIBasedChatBot
+    aws.amazon.com/cloudformation/stack-name: bedrock-chatbot
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/team-platform
+  system: developer-platform
+  providesApis:
+    - bedrock-chatbot-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: developer-platform
+  description: Internal developer platform system hosting reusable platform products and templates.
+spec:
+  owner: group:default/team-platform
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: bedrock-chatbot-api
+  description: HTTP endpoint exposed by the serverless chatbot stack.
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/team-platform
+  definition: |
+    openapi: 3.0.3
+    info:
+      title: Bedrock Chatbot API
+      version: 0.1.0
+    paths:
+      /chat:
+        post:
+          summary: Send a chat prompt to the Bedrock-backed chatbot
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    input:
+                      type: string
+          responses:
+            '200':
+              description: Successful chatbot response

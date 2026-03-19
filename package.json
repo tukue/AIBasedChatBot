@@ -1,10 +1,11 @@
 {
-  "name": "cloudformationtemplate",
+  "name": "bedrock-chatbot-platform-starter",
   "version": "1.0.0",
-  "description": "Bedrock-Powered Chatbot",
+  "description": "Backstage-ready platform starter for an AWS Bedrock-powered chatbot",
   "main": "index.js",
   "scripts": {
-    "validate": "node validate-template.js",
+    "validate": "node validate-template-local.js",
+    "validate:aws": "node validate-template.js",
     "validate:sh": "bash validate-template.sh",
     "validate:region": "AWS_REGION=us-west-2 node validate-template.js",
     "visualize": "node visualize-services.js",

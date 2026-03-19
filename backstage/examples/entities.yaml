@@ -1,0 +1,8 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: developer-platform
+  description: Internal developer platform system for reusable service starters and golden paths.
+spec:
+  owner: group:default/team-platform

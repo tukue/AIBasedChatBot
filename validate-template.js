@@ -1,7 +1,7 @@
 const { CloudFormation } = require('aws-sdk');
 const fs = require('fs');
 const path = require('path');
-const yaml = require('js-yaml');
+const { loadCloudFormationYaml } = require('./cloudformation-yaml');
 
 // Get region from command line or environment variable or use default
 const region = process.env.AWS_REGION || process.argv[2] || 'us-east-1';
@@ -15,7 +15,7 @@ const templatePath = path.join(__dirname, 'template.yaml');
 const templateContent = fs.readFileSync(templatePath, 'utf8');
 
 // Convert YAML to JSON for validation
-const templateJSON = JSON.stringify(yaml.load(templateContent));
+const templateJSON = JSON.stringify(loadCloudFormationYaml(templateContent));
 
 async function validateTemplate() {
   try {

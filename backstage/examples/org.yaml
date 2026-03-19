@@ -1,0 +1,16 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: guest
+spec:
+  memberOf: [team-platform]
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: team-platform
+  description: Platform engineering team responsible for the Bedrock chatbot starter and Backstage portal.
+spec:
+  type: team
+  children: []

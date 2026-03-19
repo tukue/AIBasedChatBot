@@ -1,6 +1,6 @@
-# Bedrock-Powered Chatbot
+# Bedrock Chatbot Platform Starter
 
-A CloudFormation template for deploying a serverless chatbot powered by Amazon Bedrock.
+A CloudFormation-based AWS Bedrock chatbot starter that is now structured to be consumed as a Backstage platform product.
 
 ## Architecture
 
@@ -19,6 +19,15 @@ A CloudFormation template for deploying a serverless chatbot powered by Amazon B
 │             │                  │             │                  │             │
 └─────────────┘                  └─────────────┘                  └─────────────┘
 ```
+
+## Platform product additions
+
+This repository now includes:
+
+- `catalog-info.yaml` for Backstage catalog registration
+- `mkdocs.yml` and `docs/` for TechDocs-ready documentation
+- `templates/create-bedrock-chatbot/template.yaml` as a Backstage Scaffolder template
+- `docs/backlog.md` as the implementation backlog for the IDP transition
 
 ## Resources
 
@@ -56,24 +65,23 @@ aws cloudformation describe-stacks --stack-name bedrock-chatbot
 
 ## Testing
 
-### Validate Template
+### Validate Template Locally
 
 ```bash
-# Make the script executable
-chmod +x validate-template.sh
+npm test
+```
 
-# Run validation
-./validate-template.sh
+### Validate Template Against AWS
+
+```bash
+node validate-template.js
 ```
 
 ### Visualize Service Interactions
 
 ```bash
-# Install dependencies
 npm install
-
-# Run visualization
-node visualize-services.js
+node visualize-services.js template.yaml
 ```
 
 ## Usage

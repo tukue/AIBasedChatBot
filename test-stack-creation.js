@@ -1,8 +1,8 @@
 const { CloudFormation } = require('aws-sdk');
 const fs = require('fs');
 const path = require('path');
-const yaml = require('js-yaml');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
+const { loadCloudFormationYaml } = require('./cloudformation-yaml');
 
 // Initialize CloudFormation client
 const cfn = new CloudFormation({ region: 'us-east-1' });
@@ -12,14 +12,12 @@ const templatePath = path.join(__dirname, 'template.yaml');
 const templateContent = fs.readFileSync(templatePath, 'utf8');
 
 // Convert YAML to JSON for AWS SDK
-const templateJSON = JSON.stringify(yaml.load(templateContent));
+const templateJSON = JSON.stringify(loadCloudFormationYaml(templateContent));
 
 // Generate unique names for resources
-const uniqueId = uuidv4().substring(0, 8);
+const uniqueId = randomUUID().replace(/-/g, '').substring(0, 8);
 const stackName = `chatbot-test-stack-${uniqueId}`;
-const s3BucketName = `chatbot-data-${uniqueId}`;
 const dynamoDBTableName = `chatbot-history-${uniqueId}`;
-const botName = `ChatbotTest-${uniqueId}`;
 
 async function createTestStack() {
   try {
@@ -30,20 +28,12 @@ async function createTestStack() {
       TemplateBody: templateJSON,
       Parameters: [
         {
-          ParameterKey: 'S3BucketName',
-          ParameterValue: s3BucketName
-        },
-        {
           ParameterKey: 'DynamoDBTableName',
           ParameterValue: dynamoDBTableName
         },
         {
           ParameterKey: 'BedrockModelId',
           ParameterValue: 'anthropic.claude-v2' // Example model ID
-        },
-        {
-          ParameterKey: 'BotName',
-          ParameterValue: botName
         }
       ],
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM'],
